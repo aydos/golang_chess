@@ -1,0 +1,12 @@
+Golang Chess
+Fahri Aydos (aydos.com|.net|.org|.io)
+
+2015 07 10 v0.1
+* github'a kondu
+
+2015 06 26 v0.0
+* isim "golang chess" olaraka değiştirildi
+
+2015 06 19 v0.0
+* golang ile ilk kod, ismi "Go ChessBook"
+
