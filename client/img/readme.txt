@@ -1,1 +1,0 @@
-Put image files here.
