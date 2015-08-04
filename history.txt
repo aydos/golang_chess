@@ -1,6 +1,9 @@
 Golang Chess
 Fahri Aydos (aydos.com|.net|.org|.io)
 
+2015 08 04 - v0.2
+* mesajlaşma yenilendi, json kullanılmıyor artık
+
 2015 07 24 - v0.1
 * local'de git kullanılmaya başlandı
 

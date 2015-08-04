@@ -14,7 +14,7 @@ var $aydos, $about;
 
 // main function
 $(document).ready(function() {
-    //user = "";
+    user = {};
     //game = new Chess();
     cfgplay = {
         draggable: true,
@@ -54,64 +54,56 @@ $(document).ready(function() {
 
     initWindow();
     clickFunctions();
-    //socketFunctions();
 
     if (window["WebSocket"]) {
-        ws = new WebSocket("ws://localhost:8080/ws");
+        ws = new WebSocket("ws://" + window.location.host + "/ws");
         ws.onopen = function() {
-            senddata("init");
+            ws.send("init");
         }
-
-        // Write message on receive
         ws.onmessage = function(e) {
-            e = JSON.parse(e.data)
-            getdata(e.type, e.data)
+            getdata(e.data)
         }
-
         ws.onclose = function(evt) {
-            ;
         }
-
     } else {
         console.log("Your browser does not support WebSockets.");
     }
 
-
     askplay();
 });
 
-function senddata(type, data) {
-    if (data) {
-        ws.send(JSON.stringify({type: type, data: data}));
-    } else {
-        ws.send(JSON.stringify({type: type}));
-    }
-}
+function getdata(data) {
 
+    var m = data.split(",");
 
-function getdata(type, data) {
-
-    if (type == "user") {
-        $username.html(data.name);
-        if (data.status == "idle") {
+    if (m[0] == "user") {           // user info
+        user.name = m[1];
+        user.status = m[2];
+        user.color = m[3];
+        user.opponent = m[4];
+        $username.html(m[1]);
+        if (m[2] == "idle") {
             askplay();
         }
     }
 
-    else if (type == "counts") {
-        $usercnt.html(data.usercnt);
-        $gamecnt.html(data.gamecnt);
-        if (data.gamecnt == 0) {
+    else if (m[0] == "c") {         // counts
+        $usercnt.html(m[1]);
+        $gamecnt.html(m[2]);
+        if (m[2] == 0) {
             $watchgames.prop("disabled", true);
         } else {
             $watchgames.prop("disabled", false);
         }
     }
 
-    else if (type == "start game") {
+    else if (m[0] == "sg") {        // start game
         $hider.fadeOut("fast");
         $status.fadeOut("fast");
-        user = data;
+        user.name = m[1];
+        user.status = m[2];
+        user.color = m[3];
+        user.opponent = m[4];
         game = new Chess();
         board = new ChessBoard("board", cfgplay);
         board.orientation(user.color);
@@ -125,48 +117,74 @@ function getdata(type, data) {
         showTurn();
     }
 
-    else if (type == "watch game") {
+    else if (m[0] == "wg") {
         $hider.fadeOut("fast");
         $status.fadeOut("fast");
-        game = new Chess(data.fen);
+        game = new Chess(m[1]);
         board = new ChessBoard("board", cfgwatch);
-        board.position(data.fen);
+        board.position(m[1]);
         board.orientation("white");
         $turnup.removeClass("turnwhite").addClass("turnblack");
         $turndown.removeClass("turnblack").addClass("turnwhite");
         showTurn();
     }
 
-    else if (type == "finish user") {
-        user = data;
+    else if (m[0] == "fu") {  // finish user
+        user.name = m[1];
+        user.status = m[2];
+        user.color = m[3];
+        user.opponent = m[4];
     }
 
-    else if (type == "finish game") {
-        showStatus(data, "OK");
+    else if (m[0] == "fg") { // finish game
+        status = "Game finished."
+        if (m[1] == 1) {
+            status = "Draw"
+        } else if (m[1] == 2) {
+            status = "White won"
+        } else if (m[1] == 3) {
+            status = "Black won"
+        } else if (m[1] == 4) {
+            status = "White won. Black resigned."
+        } else if (m[1] == 5) {
+            status = "Black won. White resigned."
+        } else if (m[1] == 6) {
+            status = "White won. Black disconnected."
+        } else if (m[1] == 7) {
+            status = "Black won. White disconnected."
+        }
+        showStatus(status, "OK");
     }
 
-    else if (type == "wait") {
-        user = data.user;
+    else if (m[0] == "wait") {
+        user.name = m[1];
+        user.status = m[2];
+        user.color = m[3];
+        user.opponent = m[4];
         showStatus("Waiting for opponent", "Cancel");
     }
 
-    else if (type == "game info") {
+    else if (m[0] == "gi") {
         if (board.orientation() === "white") {
-            $playerup.html(data.black);
-            $playerdown.html(data.white);
+            $playerup.html(m[2]);
+            $playerdown.html(m[1]);
         } else {
-            $playerup.html(data.white);
-            $playerdown.html(data.black);
+            $playerup.html(m[1]);
+            $playerdown.html(m[2]);
         }
-        if (data.watchers) {
-            $watcherinfo.html("Watcher this game:<br /><span id='watchercnt'>"+data.watchers + "</span>");
+        if (m[3] > 0) {
+            $watcherinfo.html("Watcher this game:<br /><span id='watchercnt'>"+ m[3] + "</span>");
         } else {
             $watcherinfo.html("");
         }
     }
 
-    else if (type == "move") {
-        game.move(data);
+    else if (m[0] == "mv") {
+        move = { from: m[1][0]+m[1][1], to: m[1][2]+m[1][3] };
+        if (m[1][4]) {
+            move.promotion = m[1][4];
+        }
+        game.move(move);
         board.position(game.fen());
         showTurn();
     }
@@ -198,7 +216,7 @@ function keyDown(e) {
                 showStatus("Do you resign the game?", "Yes");
             }
         } else if (user.status === "watch") {  // leave watching game
-            senddata("cancel watch");
+            ws.send("cw");
         }
     }
 }
@@ -251,39 +269,37 @@ function clickFunctions() {
     $("#playhuman").click(function() {
         $hider.fadeOut("fast");
         $askplay.fadeOut("fast");
-        senddata("play human");
+        ws.send("ph");
     });
 
     $("#playcomputer").click(function() {
         $hider.fadeOut("fast");
         $askplay.fadeOut("fast");
-        senddata("play computer");
+        ws.send("pc");
     });
 
     $("#watchgames").click(function() {
         $hider.fadeOut("fast");
         $askplay.fadeOut("fast");
-        senddata("watch game");
+        ws.send("wg");
     });
 
     $cancel.click(function() {
         $status.fadeOut("fast");
         $askplay.fadeIn("fast");
         if ($cancel.html() === "Cancel") {
-            senddata("cancel wait");
+            ws.send("cw");
         }
         if ($cancel.html() === "OK") {
             ;
         }
         if ($cancel.html() === "Yes") {
-            var status = {
-                draw : 0,
-                white : 0,
-                black : 0,
-                resigned : user.name,
-                disconnected : ""
-            };
-            senddata("finish game", status);
+            if (user.color == "white") {
+                status = 4; // white resigned
+            } else {
+                status = 5; // black resigned
+            }
+            ws.send("fg,"+status);
         }
     });
 
@@ -314,11 +330,13 @@ var onDrop = function(source, target) {
         to: target,
         promotion: "q"
     });
+
+    move = source + target + "q";
     // illegal move
     if (move === null) return "snapback";
 
     // make the move
-    senddata("move", {move: move.san, fen: game.fen()})
+    ws.send("mv," + move + "," + game.fen());
 
     // if play againts computer
     if (user.opponent === "computer") {
@@ -336,31 +354,25 @@ var onSnapEnd = function() {
 };
 
 var updateStatus = function() {
-    var status = {
-        draw : 0,
-        white : 0,
-        black : 0,
-        resigned : "",
-        disconnected : ""
-    };
+    var status = 0;
     /*var moveColor = 'White';
     if (game.turn() === 'b') {
         moveColor = 'Black';
     }*/
     // checkmate?
     if (game.in_checkmate() === true) {
-        if (game.turn() === 'w') {
-            status.black = 1;
+        if (game.turn() === 'b') {
+            status = 2; // white won
         } else {
-            status.white = 1;
+            status = 3; // black won
         }
         //status = 'Game over, ' + moveColor + ' is in checkmate.';
-        senddata("finish game", status);
+        ws.send("fg,"+status);
     }
     // draw?
     else if (game.in_draw() === true) {
-        status.draw = 1;
-        senddata("finish game", status);
+        status = 1;  // draw
+        ws.send("fg,"+status);
     }
     // game still on
     else {
@@ -383,7 +395,7 @@ var makeComputerMove = function() {
     var randomIndex = Math.floor(Math.random() * possibleMoves.length);
     game.move(possibleMoves[randomIndex]);
     board.position(game.fen());
-    senddata("move", {move: possibleMoves[randomIndex], fen: game.fen()})
+    ws.send("mv," + possibleMoves[randomIndex] + "," + fen);
     */
 
     // GarboChess
@@ -397,7 +409,7 @@ var makeComputerMove = function() {
         game.move(move);
         board.position(game.fen());
         showTurn();
-        senddata("move", {move: move, fen: game.fen()});
+        ws.send("mv," + e.data + "," + game.fen());
         updateStatus();
     }
     g_garbo.postMessage("position " + game.fen());
